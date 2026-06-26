@@ -24,8 +24,8 @@ git remote -v
 ```
 
 ```
-origin = 내 저장소 (내 GitHub 원격 저장소)
-upstream = 원본 저장소 (타인의 저장소)
+origin = 내 저장소 (내 GitHub 원격 저장소) -> clone 
+upstream = 원본 저장소 (타인의 저장소) -> fork 
 ```
 
 #### 작업 시 명령어
