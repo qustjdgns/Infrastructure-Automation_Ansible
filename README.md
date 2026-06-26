@@ -1,11 +1,11 @@
-**Ubuntu에서 자기 fork clone**
+**내 저장소의 모든 코드와 커밋 역사를 내 컴퓨터로 다운로드**
 
 ```jsx
-git clone git@github.com:yeonxp/hi.git
+git clone git@github.com:xxxxxx/hi.git
 cd hi
 ```
 
-**원본 organization repo 연결**
+**타인의 저장소 가져오기**
 
 ```jsx
 git remote add upstream git@github.com:Infra-Project-Team-4/hi.git
@@ -13,20 +13,22 @@ git remote add upstream git@github.com:Infra-Project-Team-4/hi.git
 git remote -v
 ```
 
-나는 첨에 upload test 할 떄 이미 추가 된 상태라 수정
-
-```jsx
-git remote set-url origin git@github.com:yeonXP/hi.git
-
-git remote add upstream git@github.com:Infra-Project-Team-4/hi.git
-
-git remote -v
-```
 
 ```
 origin = 내 저장소 (내 GitHub 원격 저장소) -> clone 
 upstream = 원본 저장소 (타인의 저장소) -> fork 
 ```
+**내 저장소 설정 -> 타인의 저장소 추가 -> 설정 확인**
+
+```jsx
+git remote set-url origin git@github.com:xxxxx/hi.git
+
+git remote add upstream git@github.com:Infra-Project-Team-4/hi.git
+
+git remote -v
+```
+
+
 
 #### 작업 시 명령어
 
