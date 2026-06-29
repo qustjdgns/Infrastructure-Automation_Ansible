@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>SmartWMS PDA</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- QR/Barcode 스캔 라이브러리 -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <!-- PDA 전용 CSS -->
+    <link rel="stylesheet" href="/static/css/pda.css">
+</head>
+<body>
+    <div class="pda-container">
+        <div class="header">
+            <h2>SmartWMS PDA</h2>
+            <div id="mode-badge">작업 모드 확인 중</div>
+        </div>
+
+        <p class="description">QR/바코드를 스캔하여 상품 정보를 조회하세요.</p>
+
+        <!-- QR 스캔 영역 -->
+        <div class="scanner-box">
+            <div id="reader"></div>
+        </div>
+
+        <!-- 상품 정보 출력 -->
+        <div class="result-card">
+            <div class="row">
+                <span class="label">스캔 코드</span>
+                <span id="barcode" class="value">대기 중...</span>
+            </div>
+
+            <div class="row">
+                <span class="label">상품명</span>
+                <span id="product-name" class="value">-</span>
+            </div>
+
+            <div class="row">
+                <span class="label">재고</span>
+                <span id="stock" class="value">-</span>
+            </div>
+
+            <div class="row">
+                <span class="label">위치</span>
+                <span id="location" class="value">-</span>
+            </div>
+        </div>
+
+        <!-- 입고/출고 수량 -->
+        <div class="quantity-card">
+            <label for="quantity">처리 수량</label>
+            <input id="quantity" type="number" min="1" value="1">
+
+            <button id="stock-btn" onclick="processStock()">처리</button>
+        </div>
+
+        <!-- 메시지 -->
+        <div id="message" class="message">스캔 대기 중</div>
+
+        <div class="footer">
+            SmartWMS UserService PDA
+        </div>
+    </div>
+
+    <!-- PDA 전용 JS -->
+    <script src="/static/js/pda.js"></script>
+</body>
+</html>
