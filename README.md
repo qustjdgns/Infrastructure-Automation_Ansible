@@ -97,6 +97,7 @@ ansible-infra/
 ```
 전체 인프라 구축의 실행 진입점으로, 서버 환경에 필요한 Role을 순서대로 호출하여
 Docker, Kubernetes, Harbor 등의 구성 작업을 자동 실행합니다.
+DB는 사전에 구성해서 제외합니다.
 ---
 - name: Server Init
   hosts: all
