@@ -94,6 +94,31 @@ ansible-infra/
         └── Cluster 환경 구축
 ```
 **site.yml 코드 예시**
+```
+전체 인프라 구축의 실행 진입점으로, 서버 환경에 필요한 Role을 순서대로 호출하여 Docker, Kubernetes, Harbor 등의 구성 작업을 자동 실행합니다.
+---
+- name: Server Init
+  hosts: all
+  become: yes
+  roles:
+    - docker
+
+
+- name: Kubernetes Install
+  hosts:
+    - k8s_master
+    - k8s_worker
+  become: yes
+  roles:
+    - kubernetes
+
+
+- name: Harbor Setup
+  hosts: harbor
+  become: yes
+  roles:
+    - harbor
+```
 
 <br>
 
