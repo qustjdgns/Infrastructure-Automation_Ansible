@@ -99,6 +99,7 @@ ansible-infra/
 전체 인프라 구축의 실행 진입점으로, 서버 환경에 필요한 Role을 순서대로 호출하여
 Docker, Kubernetes, Harbor 등의 구성 작업을 자동 실행합니다.
 DB는 사전에 구성해서 제외합니다.
+
 ---
 - name: Server Init
   hosts: all
@@ -130,6 +131,7 @@ DB는 사전에 구성해서 제외합니다.
 # roles/kubernetes/tasks/main.yml
 Kubernetes Role의 main.yml은 설치 작업을 먼저 수행한 후,
 Inventory 그룹 정보를 기준으로 Master Node와 Worker Node 작업을 분리하여 실행합니다.
+
 ---
 # Kubernetes 설치 작업 실행
 - import_tasks: install.yml
@@ -143,6 +145,76 @@ Inventory 그룹 정보를 기준으로 Master Node와 Worker Node 작업을 분
 # Worker Node 설정
 - import_tasks: worker.yml
   when: inventory_hostname in groups['k8s-worker']
+---
+
+# roles/harbor/tasks/main.yml
+
+Harbor Role은 필수 패키지 설치 후 설정 파일을 배포하여 Private Container Registry 환경을 자동 구성합니다.
+
+---
+# Harbor 설치에 필요한 패키지 설치
+- name: Install harbor dependencies
+  apt:
+    name:
+      - curl
+      - wget
+      - docker-compose-plugin
+    state: present
+
+
+# Harbor 설치 디렉토리 생성
+- name: Create harbor directory
+  file:
+    path: /opt/harbor
+    state: directory
+
+
+# Harbor 설정 파일 배포
+- name: Copy harbor config
+  copy:
+    src: harbor.yml
+    dest: /opt/harbor/harbor.yml
+
+---
+# roles/docker/tasks/main.yml
+
+Docker Role은 서버에 Docker를 설치하고 서비스 실행 상태를 유지하도록 자동 구성합니다.
+
+---
+# Docker 패키지 설치
+- name: Install Docker
+  apt:
+    name:
+      - docker.io
+    state: present
+
+
+# Docker 서비스 실행 및 부팅 자동 시작 설정
+- name: Start Docker Service
+  service:
+    name: docker
+    state: started
+    enabled: yes
+
+---
+# roles/database/tasks/main.yml
+
+Database Role은 서비스별 Task를 분리하여 PostgreSQL, Redis, Kafka 환경을 자동 구성합니다.
+
+---
+# PostgreSQL 설치 및 설정
+- name: Install PostgreSQL
+  import_tasks: postgres.yml
+
+
+# Redis 설치 및 설정
+- name: Install Redis
+  import_tasks: redis.yml
+
+
+# Kafka 설치 및 설정
+- name: Install Kafka
+  import_tasks: kafka.yml
 ```
 
 <br>
