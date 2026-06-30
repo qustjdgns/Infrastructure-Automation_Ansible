@@ -51,7 +51,7 @@ Pfsense으로 적용한 프로토콜
 
 # Ansible 자동화 구성
 
----
+
 
 Ansible은 Playbook을 실행하여 여러 Role을 순차적으로 호출하고, 각 Role이 담당하는 서버 구성을 자동으로 수행하는 구조로 구성되어 있습니다.
 
