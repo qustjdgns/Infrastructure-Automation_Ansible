@@ -38,7 +38,7 @@ Git Repository 구성 → .gitlab-ci.yml 작성 → Pipeline Stage 구성 → Bu
 
 
 # 네트워크 구성 (Logical Architecture)
-<img src="https://www.pfsense.org/img/pfsense-logo.svg" width="80"/>
+<i class="fa-solid fa-shield-halved"></i>
 
 
 
