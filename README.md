@@ -1,66 +1,15 @@
-**내 저장소의 모든 코드와 커밋 역사를 내 컴퓨터로 다운로드**
+# GitLab CI/CD와 Ansible을 활용한 자동화 창고관리시스템 구축
 
-```jsx
-git clone git@github.com:xxxxxx/hi.git
-cd hi
-```
+# 프로젝트 개요
 
-**타인의 저장소 가져오기**
+본 프로젝트는 GitLab CI/CD와 Ansible을 활용한 자동화 창고관리시스템(WMS) 구축 프로젝트이다.
 
-```jsx
-git remote add upstream git@github.com:Infra-Project-Team-4/hi.git
+GitLab Pipeline을 통해 소스 코드 관리부터 빌드, 테스트, 배포까지의 CI/CD 프로세스를 자동화하고, Ansible을 이용해 서버 환경 구성 및 애플리케이션 배포를 코드 기반으로 관리한다.
 
-git remote -v
-```
-
-
-```
-origin = 내 저장소 (내 GitHub 원격 저장소) -> clone 
-upstream = 원본 저장소 (타인의 저장소) -> fork 
-```
-**내 저장소 설정 -> 타인의 저장소 추가 -> 설정 확인**
-
-```jsx
-git remote set-url origin git@github.com:xxxxx/hi.git
-
-git remote add upstream git@github.com:Infra-Project-Team-4/hi.git
-
-git remote -v
-```
+이를 통해 반복적인 수동 작업을 최소화하고, 안정적이고 일관된 운영 환경을 구축하여 창고관리시스템의 배포 효율성과 유지보수성을 향상시키는 것을 목표로 한다.
 
 
 
-#### 작업 시 명령어
 
-**원본 최신 내용 가져오기**
 
-```jsx
-git checkout main
-git pull upstream main
-```
 
-**내 fork에도 최신 내용 반영**
-
-```jsx
-git push origin main
-```
-
-**작업 브랜치 만들기**
-
-```jsx
-git checkout -b feature/service-health-api
-```
-
-**파일 수정 후 commit**
-
-```jsx
-git status
-git add .
-git commit -m "add health check api"
-```
-
-**내 fork에 push**
-
-```jsx
-git push origin feature/service-health-api
-```
