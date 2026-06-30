@@ -43,7 +43,7 @@ Git Repository 구성 → .gitlab-ci.yml 작성 → Pipeline Stage 구성 → Bu
 
 # Ansible 자동화 구성
 
-```text
+```
 ansible-infra/
 │
 ├── ansible.cfg
