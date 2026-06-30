@@ -96,6 +96,7 @@ ansible-infra/
 **site.yml 코드 예시**
 ```
 전체 인프라 구축의 실행 진입점으로, 서버 환경에 필요한 Role을 순서대로 호출하여
+<br>
 Docker, Kubernetes, Harbor 등의 구성 작업을 자동 실행합니다.
 ---
 - name: Server Init
