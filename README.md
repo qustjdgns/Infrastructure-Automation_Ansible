@@ -43,48 +43,40 @@ Git Repository 구성 → .gitlab-ci.yml 작성 → Pipeline Stage 구성 → Bu
 
 # Ansible 자동화 구성
 ```text
+```text
 ansible-infra/
 │
 ├── ansible.cfg
+│   └── Ansible 환경 설정
 │
 ├── playbooks/
-│   ├── deploy.yml
+│   ├── site.yml
+│   │   └── 전체 인프라 구축 실행
+│   │
 │   ├── init-server.yml
-│   ├── k8s-master-init.yml
-│   ├── k8s-worker-join.yml
+│   │   └── 서버 초기 설정
+│   │
 │   ├── kubernetes-install.yml
-│   └── site.yml
+│   │   └── Kubernetes 설치
+│   │
+│   └── deploy.yml
+│       └── 서비스 배포
 │
 └── roles/
     │
     ├── database/
-    │   └── tasks/
-    │       ├── main.yml
-    │       ├── postgres.yml
-    │       ├── redis.yml
-    │       └── kafka.yml
+    │   └── PostgreSQL / Redis / Kafka 구축
     │
     ├── docker/
-    │   └── tasks/
-    │       └── main.yml
+    │   └── Docker 환경 구성
     │
     ├── harbor/
-    │   └── tasks/
-    │       └── main.yml
+    │   └── Private Registry 구성
     │
     └── kubernetes/
-        │
-        ├── handlers/
-        │   └── main.yml
-        │
-        ├── tasks/
-        │   ├── main.yml
-        │   ├── install.yml
-        │   ├── master.yml
-        │   └── worker.yml
-        │
-        └── templates/
-            └── kubeadm-config.yaml.j2
+        ├── Master Node 구성
+        ├── Worker Node Join
+        └── Cluster 환경 구축
 ```
 
 # CI/CD Pipeline
