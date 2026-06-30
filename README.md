@@ -45,7 +45,7 @@ Git Repository 구성 → .gitlab-ci.yml 작성 → Pipeline Stage 구성 → Bu
 Pfsense으로 적용한 프로토콜
 - 방화벽
 
-위 에 다적고 네트워크 토폴로지 이미지 최종으로 넣을 것
+**서비스 네트워크 토폴로지**
 
 
 
