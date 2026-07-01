@@ -1,43 +1,169 @@
 ---
-- name: Install harbor dependencies
+# ===== 1. machine-id, hostname 정리 (클론 충돌 방지, common role 미사용 노드라 별도 처리) =====
+- name: machine-id 재생성
+  shell: |
+    rm -f /etc/machine-id
+    systemd-machine-id-setup
+  changed_when: true
+
+- name: hostname 설정
+  hostname:
+    name: harbor-server
+
+- name: /etc/hosts 정리
+  blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - k8s cluster"
+    block: |
+      {{ master_ip }} k8s-master
+      {{ worker_ip }} k8s-worker1
+      {{ harbor_ip }} harbor.local
+
+# ===== 2. Docker 설치 (Harbor는 docker-compose 기반으로 동작) =====
+- name: 필수 패키지 설치
   apt:
     name:
+      - apt-transport-https
+      - ca-certificates
       - curl
-      - wget
+      - gnupg
+      - software-properties-common
+    state: present
+    update_cache: true
+
+- name: Docker GPG 키 디렉토리 생성
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Docker GPG 키 추가
+  shell: |
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  args:
+    creates: /etc/apt/keyrings/docker.gpg
+
+- name: Docker apt 저장소 등록
+  shell: |
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list
+  args:
+    creates: /etc/apt/sources.list.d/docker.list
+
+- name: apt 캐시 업데이트
+  apt:
+    update_cache: true
+
+- name: Docker 및 docker-compose-plugin 설치
+  apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
       - docker-compose-plugin
     state: present
-    update_cache: yes
 
+- name: Docker 서비스 활성화
+  systemd:
+    name: docker
+    state: started
+    enabled: true
 
-- name: Create harbor directory
+- name: ansible_user를 docker 그룹에 추가
+  user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: true
+
+# ===== 3. 자체서명 TLS 인증서 생성 (Harbor용) =====
+- name: 인증서 저장 디렉토리 생성
   file:
-    path: /opt/harbor
+    path: "{{ harbor_install_dir }}/certs"
     state: directory
+    mode: '0755'
+    recurse: true
 
+- name: 기존 CA 키 존재 확인
+  stat:
+    path: "{{ harbor_install_dir }}/certs/ca.key"
+  register: ca_key_exists
 
-- name: Copy harbor config
+- name: CA 개인키 생성
+  command: openssl genrsa -out {{ harbor_install_dir }}/certs/ca.key 4096
+  when: not ca_key_exists.stat.exists
+
+- name: CA 인증서 생성 (자체서명 루트 CA)
+  command: >
+    openssl req -x509 -new -nodes -sha512 -days 3650
+    -subj "/C=KR/ST=Seoul/L=Seoul/O=harbor-ca/OU=harbor/CN=harbor-ca"
+    -key {{ harbor_install_dir }}/certs/ca.key
+    -out {{ harbor_install_dir }}/certs/ca.crt
+  when: not ca_key_exists.stat.exists
+
+- name: Harbor 서버 개인키 생성
+  command: openssl genrsa -out {{ harbor_install_dir }}/certs/{{ harbor_ip }}.key 4096
+  when: not ca_key_exists.stat.exists
+
+- name: Harbor 서버 CSR 생성
+  command: >
+    openssl req -sha512 -new
+    -subj "/C=KR/ST=Seoul/L=Seoul/O=harbor/OU=harbor/CN={{ harbor_ip }}"
+    -key {{ harbor_install_dir }}/certs/{{ harbor_ip }}.key
+    -out {{ harbor_install_dir }}/certs/{{ harbor_ip }}.csr
+  when: not ca_key_exists.stat.exists
+
+- name: SAN(IP) extfile 생성
   copy:
-    src: ../../../../harbor/harbor.yml
-    dest: /opt/harbor/harbor.yml
+    dest: "{{ harbor_install_dir }}/certs/v3.ext"
+    content: |
+      subjectAltName=IP:{{ harbor_ip }},DNS:harbor.local
+      extendedKeyUsage=serverAuth
+  when: not ca_key_exists.stat.exists
 
-- name: Download Harbor installer
+- name: Harbor 서버 인증서 서명 (CA로 서명, SAN에 IP 포함)
+  command: >
+    openssl x509 -req -sha512 -days 3650
+    -extfile {{ harbor_install_dir }}/certs/v3.ext
+    -CA {{ harbor_install_dir }}/certs/ca.crt
+    -CAkey {{ harbor_install_dir }}/certs/ca.key
+    -CAcreateserial
+    -in {{ harbor_install_dir }}/certs/{{ harbor_ip }}.csr
+    -out {{ harbor_install_dir }}/certs/{{ harbor_ip }}.crt
+  when: not ca_key_exists.stat.exists
+
+# ===== 4. Harbor 설치 파일 다운로드 =====
+- name: 기존 Harbor 설치 파일 확인
+  stat:
+    path: "{{ harbor_install_dir }}/harbor.yml"
+  register: harbor_installed
+
+- name: Harbor offline installer 다운로드
   get_url:
-    url: https://github.com/goharbor/harbor/releases/download/v2.10.0/harbor-online-installer-v2.10.0.tgz
-    dest: /tmp/harbor.tgz
+    url: "https://github.com/goharbor/harbor/releases/download/{{ harbor_version }}/harbor-offline-installer-{{ harbor_version }}.tgz"
+    dest: /tmp/harbor-offline-installer.tgz
+  when: not harbor_installed.stat.exists
 
-- name: Extract Harbor
+- name: Harbor 압축 해제
   unarchive:
-    src: /tmp/harbor.tgz
+    src: /tmp/harbor-offline-installer.tgz
     dest: /opt
-    remote_src: yes
+    remote_src: true
+  when: not harbor_installed.stat.exists
 
-- name: Install Harbor
-  shell: ./install.sh
-  args:
-    chdir: /opt/harbor
-    creates: /opt/harbor/docker-compose.yml
+# ===== 5. harbor.yml 설정 파일 배치 (templates/harbor.yml.j2 사용) =====
+- name: harbor.yml 설정 파일 생성
+  template:
+    src: harbor.yml.j2
+    dest: "{{ harbor_install_dir }}/harbor.yml"
 
-- name: Restart Harbor
-  shell: docker compose up -d
+# ===== 6. Harbor 설치 실행 =====
+- name: Harbor install 스크립트 실행
+  command: "{{ harbor_install_dir }}/install.sh"
   args:
-    chdir: /opt/harbor
+    chdir: "{{ harbor_install_dir }}"
+  register: harbor_install_result
+  changed_when: true
+
+- name: Harbor 설치 결과 출력
+  debug:
+    var: harbor_install_result.stdout_lines

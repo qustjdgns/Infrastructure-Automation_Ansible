@@ -1,0 +1,116 @@
+---
+# ===== 1. 기존 클론 잔재 정리 (machine-id, hostname 재설정) =====
+- name: machine-id 초기화 (클론 VM 충돌 방지)
+  block:
+    - name: 기존 machine-id 확인
+      command: cat /etc/machine-id
+      register: current_machine_id
+      changed_when: false
+
+    - name: machine-id 재생성
+      shell: |
+        rm -f /etc/machine-id
+        systemd-machine-id-setup
+      when: current_machine_id.stdout != ""
+
+# ===== 2. hostname 설정 =====
+- name: hostname 설정
+  hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: /etc/hosts 정리 (클러스터 노드 전체 등록)
+  blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - k8s cluster"
+    block: |
+      {{ master_ip }} k8s-master
+      {{ worker_ip }} k8s-worker1
+      {{ worker2_ip }} k8s-worker2
+      {{ harbor_ip }} harbor.local
+
+# ===== 3. swap 비활성화 (K8s 필수 조건) =====
+- name: swap 비활성화
+  command: swapoff -a
+  changed_when: true
+
+- name: /etc/fstab에서 swap 항목 주석 처리 (재부팅 후에도 유지)
+  replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '# \1'
+
+# ===== 4. 커널 모듈 / 네트워크 파라미터 (K8s 필수) =====
+- name: 필요한 커널 모듈 로드 설정
+  copy:
+    dest: /etc/modules-load.d/k8s.conf
+    content: |
+      overlay
+      br_netfilter
+
+- name: overlay 모듈 즉시 로드
+  modprobe:
+    name: overlay
+    state: present
+
+- name: br_netfilter 모듈 즉시 로드
+  modprobe:
+    name: br_netfilter
+    state: present
+
+- name: K8s 네트워크 sysctl 설정
+  copy:
+    dest: /etc/sysctl.d/k8s.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables  = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward                 = 1
+
+- name: sysctl 즉시 적용
+  command: sysctl --system
+  changed_when: true
+
+# ===== 5. containerd 설치 =====
+- name: 필수 패키지 설치
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - software-properties-common
+    state: present
+    update_cache: true
+
+- name: containerd 설치
+  apt:
+    name: containerd
+    state: present
+
+- name: containerd 기본 설정 생성
+  command: containerd config default
+  register: containerd_default_config
+  changed_when: false
+
+- name: containerd 설정 파일 작성 (SystemdCgroup 활성화)
+  copy:
+    dest: /etc/containerd/config.toml
+    content: "{{ containerd_default_config.stdout | regex_replace('SystemdCgroup = false', 'SystemdCgroup = true') }}"
+  notify: restart containerd
+
+# ===== 6. Harbor insecure registry 등록 (HTTPS이지만 자체서명 인증서이므로 등록 필요) =====
+- name: containerd에 Harbor 자체서명 인증서 신뢰 설정 디렉토리 생성
+  file:
+    path: "/etc/containerd/certs.d/{{ harbor_ip }}"
+    state: directory
+    mode: '0755'
+
+- name: containerd hosts.toml 설정 (Harbor 레지스트리 등록)
+  copy:
+    dest: "/etc/containerd/certs.d/{{ harbor_ip }}/hosts.toml"
+    content: |
+      server = "https://{{ harbor_ip }}"
+
+      [host."https://{{ harbor_ip }}"]
+        capabilities = ["pull", "resolve", "push"]
+        skip_verify = true
+  notify: restart containerd

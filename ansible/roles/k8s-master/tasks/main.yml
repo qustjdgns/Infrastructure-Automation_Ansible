@@ -1,0 +1,135 @@
+---
+# ===== 1. kubeadm/kubelet/kubectl 설치 =====
+- name: Kubernetes apt 키링 디렉토리 생성
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Kubernetes GPG 키 추가
+  shell: |
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/{{ kubernetes_apt_version }}/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  args:
+    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+- name: Kubernetes apt 저장소 등록
+  copy:
+    dest: /etc/apt/sources.list.d/kubernetes.list
+    content: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/{{ kubernetes_apt_version }}/deb/ /\n"
+
+- name: apt 캐시 업데이트
+  apt:
+    update_cache: true
+
+- name: kubelet, kubeadm, kubectl 설치
+  apt:
+    name:
+      - "kubelet={{ kubernetes_version }}"
+      - "kubeadm={{ kubernetes_version }}"
+      - "kubectl={{ kubernetes_version }}"
+    state: present
+
+- name: kubelet/kubeadm/kubectl 버전 고정 (apt-mark hold)
+  command: apt-mark hold kubelet kubeadm kubectl
+  changed_when: false
+
+- name: kubelet 서비스 활성화
+  systemd:
+    name: kubelet
+    enabled: true
+
+# ===== 2. 기존 클러스터 잔재 초기화 (클론 VM 대비) =====
+- name: 기존 kubeadm 클러스터 흔적 확인
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: existing_cluster
+
+- name: 기존 클러스터가 있으면 reset (클론으로 인한 충돌 제거)
+  command: kubeadm reset -f
+  when: existing_cluster.stat.exists
+
+- name: 기존 etcd 데이터 삭제
+  file:
+    path: /var/lib/etcd
+    state: absent
+  when: existing_cluster.stat.exists
+
+- name: 기존 CNI 설정 삭제
+  file:
+    path: /etc/cni/net.d
+    state: absent
+
+- name: iptables 초기화
+  shell: |
+    iptables -F
+    iptables -t nat -F
+    iptables -t mangle -F
+    iptables -X
+  when: existing_cluster.stat.exists
+  changed_when: true
+
+# ===== 3. kubeadm init (새 IP 120 기준으로 클러스터 생성) =====
+- name: kubeadm init 실행
+  command: >
+    kubeadm init
+    --apiserver-advertise-address={{ master_ip }}
+    --pod-network-cidr={{ pod_network_cidr }}
+    --node-name=k8s-master
+  register: kubeadm_init_result
+  changed_when: true
+
+- name: kubeadm init 결과 저장 (join 명령어 추출용)
+  copy:
+    content: "{{ kubeadm_init_result.stdout }}"
+    dest: /root/kubeadm-init-output.txt
+  when: kubeadm_init_result.stdout is defined
+
+# ===== 4. kubeconfig 설정 (ansible_user 계정용) =====
+- name: .kube 디렉토리 생성
+  file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: admin.conf를 kubeconfig로 복사
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: "/home/{{ ansible_user }}/.kube/config"
+    remote_src: true
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0600'
+
+# ===== 5. Calico CNI 설치 =====
+- name: Calico manifest 다운로드 및 적용
+  become_user: "{{ ansible_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  command: kubectl apply -f {{ calico_manifest_url }}
+  changed_when: true
+
+# ===== 6. worker join 명령어를 control node로 가져오기 (다음 단계에서 워커가 사용) =====
+- name: join 명령어 생성
+  become_user: "{{ ansible_user }}"
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  command: kubeadm token create --print-join-command
+  register: join_command_result
+  changed_when: false
+
+- name: join 명령어를 모든 호스트에서 사용할 수 있도록 fact로 저장
+  set_fact:
+    k8s_join_command: "{{ join_command_result.stdout }}"
+
+- name: join 명령어를 control node(ansible 실행 PC)에 파일로 저장
+  local_action: copy content="{{ join_command_result.stdout }}" dest="/tmp/k8s_join_command.sh"
+  become: false
+
+# ===== 7. Harbor 자체서명 인증서를 마스터 노드도 신뢰하도록 등록 (이미지 pull용) =====
+- name: Harbor CA 인증서 가져오기 디렉토리 생성
+  file:
+    path: /usr/local/share/ca-certificates/harbor
+    state: directory
+    mode: '0755'

@@ -1,0 +1,74 @@
+---
+# ===== 1. kubeadm/kubelet/kubectl 설치 (마스터와 동일 절차) =====
+- name: Kubernetes apt 키링 디렉토리 생성
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Kubernetes GPG 키 추가
+  shell: |
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/{{ kubernetes_apt_version }}/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  args:
+    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+- name: Kubernetes apt 저장소 등록
+  copy:
+    dest: /etc/apt/sources.list.d/kubernetes.list
+    content: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/{{ kubernetes_apt_version }}/deb/ /\n"
+
+- name: apt 캐시 업데이트
+  apt:
+    update_cache: true
+
+- name: kubelet, kubeadm 설치 (워커는 kubectl 필수 아니지만 디버깅용으로 같이 설치)
+  apt:
+    name:
+      - "kubelet={{ kubernetes_version }}"
+      - "kubeadm={{ kubernetes_version }}"
+      - "kubectl={{ kubernetes_version }}"
+    state: present
+
+- name: kubelet/kubeadm/kubectl 버전 고정
+  command: apt-mark hold kubelet kubeadm kubectl
+  changed_when: false
+
+- name: kubelet 서비스 활성화
+  systemd:
+    name: kubelet
+    enabled: true
+
+# ===== 2. 기존 클러스터 잔재 초기화 (클론 VM 대비, 워커도 동일하게 필요) =====
+- name: 기존 kubelet 설정 확인
+  stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: existing_worker_config
+
+- name: 기존 워커 설정이 있으면 reset
+  command: kubeadm reset -f
+  when: existing_worker_config.stat.exists
+
+- name: 기존 CNI 설정 삭제
+  file:
+    path: /etc/cni/net.d
+    state: absent
+
+- name: iptables 초기화
+  shell: |
+    iptables -F
+    iptables -t nat -F
+    iptables -t mangle -F
+    iptables -X
+  when: existing_worker_config.stat.exists
+  changed_when: true
+
+# ===== 3. 마스터에서 생성한 join 명령어로 클러스터 합류 =====
+- name: control node에 저장된 join 명령어 읽기
+  local_action: slurp src=/tmp/k8s_join_command.sh
+  become: false
+  register: join_command_file
+
+- name: join 명령어 실행
+  command: "{{ join_command_file.content | b64decode }}"
+  register: join_result
+  changed_when: true
