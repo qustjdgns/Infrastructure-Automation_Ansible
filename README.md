@@ -342,19 +342,54 @@ d
 GitLab CI/CD 동작 과정
 GitLab CI/CD Pipeline을 통해 코드 변경 사항을 감지하고 자동으로 빌드 및 배포 과정을 수행한다.
 
-GitLab Repository에 코드 Push
-        ↓
-GitLab CI Pipeline 실행
-        ↓
-Docker Image Build
-        ↓
-Harbor Private Registry Push
-        ↓
-Kubernetes Cluster에 Image 배포
-        ↓
-kubectl 명령으로 Pod 업데이트
+Git push
+  ↓
+GitLab CI
+  ↓
+Docker build
+  ↓
+Harbor push
+  ↓
+K8s deploy
 ```
-깃랩 저장소 사진 & 깃랩 러너 사진 첨부 해서 설명 할 것
+---
+
+```
+.gitlab-ci.yml 
+stages:
+  - test
+  - build
+
+variables:
+  IMAGE_NAME: test-app
+  TAG: $CI_COMMIT_SHORT_SHA
+
+# 1. CI 정상 확인용
+test:
+  stage: test
+  tags:
+    - docker
+  script:
+    - echo "CI PIPELINE WORKING"
+    - echo "Runner OK"
+    - uname -a
+    - echo "Network independent mode"
+
+# 2. 가짜 build (외부 없음)
+build:
+  stage: build
+  tags:
+    - docker
+  script:
+    - echo "BUILD STAGE START"
+    - echo "No Docker build yet (network not ready)"
+    - echo "Simulating build process"
+    - mkdir -p dist
+    - echo "dummy artifact" > dist/app.txt
+  artifacts:
+    paths:
+      - dist/
+```
 
 # 서비스 구성
 (DB / Redis / Kafka 등)
