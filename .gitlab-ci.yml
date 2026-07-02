@@ -1,0 +1,11 @@
+stages:
+  - test
+
+test-job:
+  stage: test
+  tags:
+    - docker
+  script:
+    - echo "CI/CD RUNNING SUCCESS"
+    - hostname
+
