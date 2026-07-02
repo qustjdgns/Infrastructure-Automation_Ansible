@@ -153,7 +153,7 @@ DB는 사전에 구성해서 제외한다.
 
 ```
 # roles/k8s-master/main.yml
-Master 구성하는 main.yml 파
+Master 구성하는 main.yml 파일
 ---
 # 1. K8s 컴포넌트 설치 및 버전 고정
 - name: Install K8s packages (kubeadm, kubelet, kubectl)
